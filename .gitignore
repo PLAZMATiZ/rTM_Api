@@ -4,3 +4,4 @@ appsettings.json
 /obj
 /bin
 Models/Context/AppDbContextFactory.cs
+obj/Debug/net10.0/Rtm.AssemblyInfo.cs

@@ -1,50 +1,23 @@
-version: '3.8'
-
 services:
-  # Ваш API
   rtm_api:
-    image: rtm_api_image
     build:
-      context: .
+      context: .           # Це вказує Docker шукати Dockerfile в тій же папці, де лежить цей yaml
       dockerfile: Dockerfile
     container_name: rtm_api_container
     ports:
       - "8080:8080"
+    env_file:              # Явно вказуємо Docker підтягнути ваш .env
+      - .env
     environment:
-      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
-      # Перевизначення ConnectionString з appsettings.json за допомогою змінних середовища (.NET розуміє подвійне підкреслення __)
-      - ConnectionStrings__DefaultConnection=Host=${DB_HOST};Port=${DB_PORT};Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}
-    depends_on:
-      rtm_postgres:
-        condition: service_healthy
+      - ASPNETCORE_ENVIRONMENT=Development
+      - PGHOST=${PGHOST}
+      - PGPORT=${PGPORT}
+      - PGDATABASE=${PGDATABASE}
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
     networks:
       - rtm_network
 
-  # База даних PostgreSQL
-  rtm_postgres:
-    image: postgres:16-alpine
-    container_name: rtm_postgres_container
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
-    volumes:
-      - rtm_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - rtm_network
-
-# Збереження даних БД після перезапуску контейнерів
-volumes:
-  rtm_pgdata:
-
-# Мережа для спілкування контейнерів між собою
 networks:
   rtm_network:
     driver: bridge
