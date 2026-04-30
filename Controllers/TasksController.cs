@@ -21,10 +21,12 @@ namespace Rtm.Controllers
         public record UpdateTaskRequest(string Title, string? Description);
         public record ChangeStatusRequest(TaskItemStatus Status);
 
+        // БЕКЕНД: TasksController.cs
         [HttpGet("by-tab/{tabId}")]
         public async Task<IActionResult> GetTasksByTab(Guid tabId)
         {
             var tasks = await _context.TaskItems
+                .Include(t => t.DependentTasks)
                 .Where(t => t.TabId == tabId)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
