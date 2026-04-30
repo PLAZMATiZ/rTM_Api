@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Копіюємо файл проекту та відновлюємо залежності
+COPY ["Rtm.csproj", "./"]
+RUN dotnet restore "./Rtm.csproj"
+
+# Копіюємо решту файлів і збираємо
+COPY . .
+RUN dotnet publish "Rtm.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Фінальний образ
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app/publish .
+
+# Railway динамічно призначає порт, але .NET 8 у контейнері 
+# за замовчуванням слухає 8080. Railway проксіює трафік правильно.
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "Rtm.dll"]
