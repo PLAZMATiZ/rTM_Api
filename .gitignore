@@ -1,7 +1,11 @@
 .env
+.vscode
 appsettings.Development.json
 appsettings.json
 /obj
+obj/*
 /bin
+/bin/*
 Models/Context/AppDbContextFactory.cs
 obj/Debug/net10.0/Rtm.AssemblyInfo.cs
+obj/Debug/net10.0
