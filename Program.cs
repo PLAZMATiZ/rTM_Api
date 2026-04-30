@@ -30,8 +30,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors(policy =>
     policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-
-app.MapHealthChecks("/health");
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
