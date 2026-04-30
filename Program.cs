@@ -15,9 +15,29 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-// Підключення PostgreSQL
+var host = builder.Configuration["PGHOST"] ?? "localhost";
+var port = builder.Configuration["PGPORT"] ?? "5432";
+var database = builder.Configuration["PGDATABASE"] ?? "RtmDb";
+var user = builder.Configuration["PGUSER"] ?? "postgres";
+var password = builder.Configuration["PGPASSWORD"] ?? "postgres"; // локальний пароль
+
+var connectionString = $"Host={host};Port={port};Database={database};Username={user};Password={password};";
+
+if (string.IsNullOrEmpty(connectionString))
+{
+    throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+}
+
+// 2. Налаштовуємо DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        // Додаємо стійкість до розривів з'єднання (корисно для хмарних баз)
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorCodesToAdd: null);
+    }));
 
 var app = builder.Build();
 

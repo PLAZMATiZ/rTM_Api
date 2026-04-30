@@ -3,3 +3,4 @@ appsettings.Development.json
 appsettings.json
 /obj
 /bin
+Models/Context/AppDbContextFactory.cs
