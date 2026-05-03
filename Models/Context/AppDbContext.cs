@@ -1,3 +1,4 @@
+using Api.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Rtm.Models.Entities;
 
@@ -12,6 +13,7 @@ namespace Rtm.Data
         public DbSet<TaskItem> TaskItems { get; set; }
         public DbSet<TaskDependency> TaskDependencies { get; set; }
         public DbSet<HistoryLog> HistoryLogs { get; set; }
+       public DbSet<TaskStatistic> TaskStatistics { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

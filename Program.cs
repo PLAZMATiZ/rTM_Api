@@ -4,7 +4,6 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Додаємо сервіси контролерів (якщо використовуєте Controllers, а не Minimal APIs)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -19,7 +18,7 @@ var host = builder.Configuration["PGHOST"] ?? "localhost";
 var port = builder.Configuration["PGPORT"] ?? "5432";
 var database = builder.Configuration["PGDATABASE"] ?? "RtmDb";
 var user = builder.Configuration["PGUSER"] ?? "postgres";
-var password = builder.Configuration["PGPASSWORD"] ?? "postgres"; // локальний пароль
+var password = builder.Configuration["PGPASSWORD"] ?? "postgres";
 
 var connectionString = $"Host={host};Port={port};Database={database};Username={user};Password={password};";
 
@@ -32,7 +31,6 @@ if (string.IsNullOrEmpty(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
-        // Додаємо стійкість до розривів з'єднання (корисно для хмарних баз)
         npgsqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),

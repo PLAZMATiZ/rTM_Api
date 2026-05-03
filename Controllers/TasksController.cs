@@ -1,3 +1,4 @@
+using Api.Models.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Rtm.Data;
@@ -21,7 +22,51 @@ namespace Rtm.Controllers
         public record UpdateTaskRequest(string Title, string? Description);
         public record ChangeStatusRequest(TaskItemStatus Status);
 
-        // БЕКЕНД: TasksController.cs
+        // 1. Отримати всі взяті задачі користувача
+        [HttpGet("taken")]
+        public async Task<IActionResult> GetTakenTasks([FromQuery] Guid userId)
+        {
+            var tasks = await _context.TaskItems
+                .Include(t => t.Tab)
+                .Where(t => t.Tab.UserId == userId && t.StartedAt != null)
+                .OrderByDescending(t => t.StartedAt)
+                .ToListAsync();
+
+            return Ok(tasks);
+        }
+
+        // 2. Взяти задачу в роботу
+        [HttpPost("{id}/take")]
+        public async Task<IActionResult> TakeTask(Guid id)
+        {
+            var task = await _context.TaskItems.FindAsync(id);
+            if (task == null) return NotFound();
+
+            task.StartedAt = DateTime.UtcNow;
+            task.FinishedAt = null; // Скидаємо час завершення, якщо задачу взяли повторно
+
+            // Логуємо в історію
+            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Задачу '{task.Title}' взято в роботу" });
+
+            await _context.SaveChangesAsync();
+            return Ok(task);
+        }
+
+        // 3. Прибрати з узятих
+        [HttpPost("{id}/untake")]
+        public async Task<IActionResult> UntakeTask(Guid id)
+        {
+            var task = await _context.TaskItems.FindAsync(id);
+            if (task == null) return NotFound();
+
+            task.StartedAt = null;
+            task.FinishedAt = null;
+
+            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Задачу '{task.Title}' прибрано з робочих" });
+
+            await _context.SaveChangesAsync();
+            return Ok(task);
+        }
         [HttpGet("by-tab/{tabId}")]
         public async Task<IActionResult> GetTasksByTab(Guid tabId)
         {
@@ -67,19 +112,66 @@ namespace Rtm.Controllers
             return Ok(task);
         }
 
+        // 1. ОНОВЛЕНИЙ МЕТОД ChangeStatus
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> ChangeStatus(Guid id, [FromBody] ChangeStatusRequest request)
         {
-            var task = await _context.TaskItems.FindAsync(id);
+            // Include(t => t.Tab) потрібен, щоб знайти UserId
+            var task = await _context.TaskItems.Include(t => t.Tab).FirstOrDefaultAsync(t => t.Id == id);
             if (task == null) return NotFound();
 
-            var oldStatus = task.Status;
             task.Status = request.Status;
 
-            LogHistory(task.TabId, task.Id, $"Задача '{task.Title}' змінила статус з {oldStatus} на {task.Status}");
+            // Якщо задачу ВИКОНАНО і вона БУЛА В РОБОТІ
+            if (request.Status == TaskItemStatus.Done && task.StartedAt != null)
+            {
+                task.FinishedAt = DateTime.UtcNow;
+                var duration = (int)(task.FinishedAt.Value - task.StartedAt.Value).TotalSeconds;
+
+                // Перевіряємо, чи є вже статистика для цієї задачі (щоб не дублювати, якщо юзер клікав туди-сюди)
+                var existingStat = await _context.TaskStatistics.FirstOrDefaultAsync(s => s.TaskId == task.Id);
+
+                if (existingStat == null)
+                {
+                    _context.TaskStatistics.Add(new TaskStatistic
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = task.Tab.UserId,
+                        TaskId = task.Id,
+                        TaskTitle = task.Title,
+                        TabName = task.Tab.Name,
+                        StartedAt = task.StartedAt.Value,
+                        FinishedAt = task.FinishedAt.Value,
+                        DurationSeconds = duration
+                    });
+                }
+                else
+                {
+                    existingStat.FinishedAt = task.FinishedAt.Value;
+                    existingStat.DurationSeconds = duration;
+                }
+            }
+            else if (request.Status == TaskItemStatus.Pending)
+            {
+                task.FinishedAt = null;
+            }
+
+            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Статус змінено на {task.Status}" });
 
             await _context.SaveChangesAsync();
             return Ok(task);
+        }
+
+        // 2. НОВИЙ МЕТОД ДЛЯ ОТРИМАННЯ СТАТИСТИКИ
+        [HttpGet("statistics")]
+        public async Task<IActionResult> GetStatistics([FromQuery] Guid userId)
+        {
+            var stats = await _context.TaskStatistics
+                .Where(s => s.UserId == userId)
+                .OrderByDescending(s => s.FinishedAt)
+                .ToListAsync();
+
+            return Ok(stats);
         }
 
         [HttpDelete("{id}")]

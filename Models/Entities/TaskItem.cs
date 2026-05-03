@@ -13,6 +13,8 @@ namespace Rtm.Models.Entities
         public required string Title { get; set; }
         public string? Description { get; set; }
         public TaskItemStatus Status { get; set; } = TaskItemStatus.Pending;
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; } 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Навігаційні властивості
