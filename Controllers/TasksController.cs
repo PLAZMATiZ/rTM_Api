@@ -88,13 +88,28 @@ namespace Rtm.Controllers
             var task = await _context.TaskItems.FindAsync(id);
             if (task == null) return NotFound();
 
-            LogHistory(task.TabId, null, $"Задачу '{task.Title}' видалено");
+            var dependenciesToRemove = await _context.TaskDependencies
+                .Where(d => d.ParentTaskId == id || d.ChildTaskId == id)
+                .ToListAsync();
+
+            if (dependenciesToRemove.Any())
+            {
+                _context.TaskDependencies.RemoveRange(dependenciesToRemove);
+            }
+
+            _context.HistoryLogs.Add(new HistoryLog
+            {
+                Id = Guid.NewGuid(),
+                TabId = task.TabId,
+                Action = $"Задачу '{task.Title}' та її зв'язки видалено"
+            });
+
             _context.TaskItems.Remove(task);
 
             await _context.SaveChangesAsync();
+
             return NoContent();
         }
-
         private void LogHistory(Guid tabId, Guid? taskId, string action)
         {
             _context.HistoryLogs.Add(new HistoryLog
