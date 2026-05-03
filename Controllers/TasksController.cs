@@ -18,8 +18,9 @@ namespace Rtm.Controllers
             _context = context;
         }
 
-        public record CreateTaskRequest(Guid TabId, string Title, string? Description);
-        public record UpdateTaskRequest(string Title, string? Description);
+        // ДОДАНО: Priority та Complexity
+        public record CreateTaskRequest(Guid TabId, string Title, string? Description, int? Priority, int? Complexity);
+        public record UpdateTaskRequest(string Title, string? Description, int? Priority, int? Complexity);
         public record ChangeStatusRequest(TaskItemStatus Status);
 
         // 1. Отримати всі взяті задачі користувача
@@ -67,6 +68,7 @@ namespace Rtm.Controllers
             await _context.SaveChangesAsync();
             return Ok(task);
         }
+
         [HttpGet("by-tab/{tabId}")]
         public async Task<IActionResult> GetTasksByTab(Guid tabId)
         {
@@ -87,7 +89,9 @@ namespace Rtm.Controllers
                 Id = Guid.NewGuid(),
                 TabId = request.TabId,
                 Title = request.Title,
-                Description = request.Description
+                Description = request.Description,
+                Priority = request.Priority ?? 0,    // Зберігаємо пріоритет (по замовчуванню 0)
+                Complexity = request.Complexity ?? 0 // Зберігаємо складність (по замовчуванню 0)
             };
 
             _context.TaskItems.Add(task);
@@ -105,6 +109,8 @@ namespace Rtm.Controllers
 
             task.Title = request.Title;
             task.Description = request.Description;
+            task.Priority = request.Priority ?? 0;     // Оновлюємо пріоритет
+            task.Complexity = request.Complexity ?? 0; // Оновлюємо складність
 
             LogHistory(task.TabId, task.Id, $"Задачу '{task.Title}' оновлено");
 
@@ -112,7 +118,6 @@ namespace Rtm.Controllers
             return Ok(task);
         }
 
-        // 1. ОНОВЛЕНИЙ МЕТОД ChangeStatus
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> ChangeStatus(Guid id, [FromBody] ChangeStatusRequest request)
         {
@@ -162,7 +167,6 @@ namespace Rtm.Controllers
             return Ok(task);
         }
 
-        // 2. НОВИЙ МЕТОД ДЛЯ ОТРИМАННЯ СТАТИСТИКИ
         [HttpGet("statistics")]
         public async Task<IActionResult> GetStatistics([FromQuery] Guid userId)
         {
@@ -202,6 +206,7 @@ namespace Rtm.Controllers
 
             return NoContent();
         }
+        
         private void LogHistory(Guid tabId, Guid? taskId, string action)
         {
             _context.HistoryLogs.Add(new HistoryLog
