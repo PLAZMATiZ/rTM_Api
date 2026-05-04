@@ -19,8 +19,8 @@ namespace Rtm.Controllers
         }
 
         // ДОДАНО: Priority та Complexity
-        public record CreateTaskRequest(Guid TabId, string Title, string? Description, int? Priority, int? Complexity);
-        public record UpdateTaskRequest(string Title, string? Description, int? Priority, int? Complexity);
+    public record CreateTaskRequest(Guid TabId, string Title, string? Description, int? Priority, int? Complexity, DateTime? Deadline);
+        public record UpdateTaskRequest(string Title, string? Description, int? Priority, int? Complexity, DateTime? Deadline);
         public record ChangeStatusRequest(TaskItemStatus Status);
 
         // 1. Отримати всі взяті задачі користувача
@@ -91,7 +91,8 @@ namespace Rtm.Controllers
                 Title = request.Title,
                 Description = request.Description,
                 Priority = request.Priority ?? 0,    // Зберігаємо пріоритет (по замовчуванню 0)
-                Complexity = request.Complexity ?? 0 // Зберігаємо складність (по замовчуванню 0)
+                Complexity = request.Complexity ?? 0, // Зберігаємо складність (по замовчуванню 0)
+                Deadline = request.Deadline
             };
 
             _context.TaskItems.Add(task);
@@ -111,6 +112,7 @@ namespace Rtm.Controllers
             task.Description = request.Description;
             task.Priority = request.Priority ?? 0;     // Оновлюємо пріоритет
             task.Complexity = request.Complexity ?? 0; // Оновлюємо складність
+            task.Deadline = request.Deadline;
 
             LogHistory(task.TabId, task.Id, $"Задачу '{task.Title}' оновлено");
 

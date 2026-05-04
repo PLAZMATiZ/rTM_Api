@@ -17,6 +17,7 @@ namespace Rtm.Models.Entities
         public int? Complexity { get; set; }
         public DateTime? StartedAt { get; set; }
         public DateTime? FinishedAt { get; set; } 
+        public DateTime? Deadline { get; set; } 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Навігаційні властивості
