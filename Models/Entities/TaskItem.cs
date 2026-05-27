@@ -15,9 +15,11 @@ namespace Rtm.Models.Entities
         public TaskItemStatus Status { get; set; } = TaskItemStatus.Pending;
         public int? Priority { get; set; }
         public int? Complexity { get; set; }
+        public bool IsPaused { get; set; } = false;
+        public int TotalSpentSeconds { get; set; } = 0;
         public DateTime? StartedAt { get; set; }
-        public DateTime? FinishedAt { get; set; } 
-        public DateTime? Deadline { get; set; } 
+        public DateTime? FinishedAt { get; set; }
+        public DateTime? Deadline { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Навігаційні властивості

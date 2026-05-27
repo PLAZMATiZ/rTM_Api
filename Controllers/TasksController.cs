@@ -19,7 +19,7 @@ namespace Rtm.Controllers
         }
 
         // ДОДАНО: Priority та Complexity
-    public record CreateTaskRequest(Guid TabId, string Title, string? Description, int? Priority, int? Complexity, DateTime? Deadline);
+        public record CreateTaskRequest(Guid TabId, string Title, string? Description, int? Priority, int? Complexity, DateTime? Deadline);
         public record UpdateTaskRequest(string Title, string? Description, int? Priority, int? Complexity, DateTime? Deadline);
         public record ChangeStatusRequest(TaskItemStatus Status);
 
@@ -44,16 +44,36 @@ namespace Rtm.Controllers
             if (task == null) return NotFound();
 
             task.StartedAt = DateTime.UtcNow;
-            task.FinishedAt = null; // Скидаємо час завершення, якщо задачу взяли повторно
+            task.IsPaused = false;
+            task.FinishedAt = null;
 
-            // Логуємо в історію
-            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Задачу '{task.Title}' взято в роботу" });
+            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Задачу '{task.Title}' взято в роботу (або відновлено)" });
 
             await _context.SaveChangesAsync();
             return Ok(task);
         }
 
-        // 3. Прибрати з узятих
+        // 2. === НОВИЙ МЕТОД ПАУЗИ ===
+        [HttpPost("{id}/pause")]
+        public async Task<IActionResult> PauseTask(Guid id)
+        {
+            var task = await _context.TaskItems.FindAsync(id);
+            if (task == null || task.IsPaused || task.StartedAt == null) return BadRequest();
+
+            // Додаємо час з моменту StartedAt до загального часу
+            var sessionSeconds = (DateTime.UtcNow - task.StartedAt.Value).TotalSeconds;
+            task.TotalSpentSeconds += (int)sessionSeconds;
+
+            task.IsPaused = true;
+            task.StartedAt = null; // Скидаємо час початку, бо задача на паузі
+
+            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Задачу '{task.Title}' поставлено на паузу" });
+
+            await _context.SaveChangesAsync();
+            return Ok(task);
+        }
+
+        // 3. ВІДМІНИТИ РОБОТУ (Зкинути таймер)
         [HttpPost("{id}/untake")]
         public async Task<IActionResult> UntakeTask(Guid id)
         {
@@ -62,8 +82,10 @@ namespace Rtm.Controllers
 
             task.StartedAt = null;
             task.FinishedAt = null;
+            task.IsPaused = false;
+            task.TotalSpentSeconds = 0; // Скидаємо накопичений час
 
-            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Задачу '{task.Title}' прибрано з робочих" });
+            _context.HistoryLogs.Add(new HistoryLog { Id = Guid.NewGuid(), TabId = task.TabId, TaskId = task.Id, Action = $"Задачу '{task.Title}' прибрано з робочих (таймер скинуто)" });
 
             await _context.SaveChangesAsync();
             return Ok(task);
@@ -123,21 +145,20 @@ namespace Rtm.Controllers
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> ChangeStatus(Guid id, [FromBody] ChangeStatusRequest request)
         {
-            // Include(t => t.Tab) потрібен, щоб знайти UserId
             var task = await _context.TaskItems.Include(t => t.Tab).FirstOrDefaultAsync(t => t.Id == id);
             if (task == null) return NotFound();
 
             task.Status = request.Status;
 
-            // Якщо задачу ВИКОНАНО і вона БУЛА В РОБОТІ
-            if (request.Status == TaskItemStatus.Done && task.StartedAt != null)
+            if (request.Status == TaskItemStatus.Done && (task.StartedAt != null || task.IsPaused))
             {
                 task.FinishedAt = DateTime.UtcNow;
-                var duration = (int)(task.FinishedAt.Value - task.StartedAt.Value).TotalSeconds;
 
-                // Перевіряємо, чи є вже статистика для цієї задачі (щоб не дублювати, якщо юзер клікав туди-сюди)
+                // РАХУЄМО ФІНАЛЬНИЙ ЧАС: Накопичений час + Час поточної сесії (якщо не на паузі)
+                var currentSessionSeconds = task.StartedAt != null ? (task.FinishedAt.Value - task.StartedAt.Value).TotalSeconds : 0;
+                var finalDuration = task.TotalSpentSeconds + (int)currentSessionSeconds;
+
                 var existingStat = await _context.TaskStatistics.FirstOrDefaultAsync(s => s.TaskId == task.Id);
-
                 if (existingStat == null)
                 {
                     _context.TaskStatistics.Add(new TaskStatistic
@@ -147,15 +168,15 @@ namespace Rtm.Controllers
                         TaskId = task.Id,
                         TaskTitle = task.Title,
                         TabName = task.Tab.Name,
-                        StartedAt = task.StartedAt.Value,
+                        StartedAt = DateTime.UtcNow.AddSeconds(-finalDuration), // Приблизний старт
                         FinishedAt = task.FinishedAt.Value,
-                        DurationSeconds = duration
+                        DurationSeconds = finalDuration
                     });
                 }
                 else
                 {
                     existingStat.FinishedAt = task.FinishedAt.Value;
-                    existingStat.DurationSeconds = duration;
+                    existingStat.DurationSeconds = finalDuration;
                 }
             }
             else if (request.Status == TaskItemStatus.Pending)
@@ -208,7 +229,7 @@ namespace Rtm.Controllers
 
             return NoContent();
         }
-        
+
         private void LogHistory(Guid tabId, Guid? taskId, string action)
         {
             _context.HistoryLogs.Add(new HistoryLog
