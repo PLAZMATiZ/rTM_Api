@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: rtm_api_container
+    container_name: rtm-web-api
     ports:
       - "8080:8080"
     env_file:
@@ -26,7 +26,7 @@ services:
 
   db:
     image: postgres:17-alpine
-    container_name: rtm_db_container
+    container_name: rtm-db
     environment:
       POSTGRES_USER: ${PGUSER}
       POSTGRES_PASSWORD: ${PGPASSWORD}
