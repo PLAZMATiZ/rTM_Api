@@ -2,27 +2,29 @@ version: '3.8'
 
 services:
   rtm-web-api:
-    image: ghcr.io/plazmatiz/rtm-web-api:latest # Вказуємо образ для pull з GHCR
+    image: ghcr.io/plazmatiz/rtm-web-api:latest
     build:
       context: .
       dockerfile: Dockerfile
     container_name: rtm-web-api
-    ports:
-      - "8080:8080"
+    # Замість ports використовуємо expose. Трафік піде через спільну мережу проксі.
+    expose:
+      - "8080"
     env_file:
       - .env
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - PGHOST=db                       # Змінено на ім'я сервісу бази даних
-      - PGPORT=5432                     # Внутрішній порт мережі Docker
+      - PGHOST=db
+      - PGPORT=5432
       - PGDATABASE=${PGDATABASE}
       - PGUSER=${PGUSER}
       - PGPASSWORD=${PGPASSWORD}
     depends_on:
-      db:                               # Виправлено синтаксис (прибрано дефіс)
+      db:
         condition: service_healthy
     networks:
-      - rtm-internal-network
+      - nginx-proxy-network          # Спільна мережа з Nginx Proxy Manager
+      - rtm-internal-network         # Внутрішня мережа для бази даних
 
   db:
     image: postgres:17-alpine
@@ -32,20 +34,22 @@ services:
       POSTGRES_PASSWORD: ${PGPASSWORD}
       POSTGRES_DB: ${PGDATABASE}
     ports:
-      - "127.0.0.1:5433:5432"           # Зовнішній порт 5433, внутрішній 5432
+      - "127.0.0.1:5433:5432"
     volumes:
-      - rtm_pg_data:/var/lib/postgresql/data # Виправлено назву тома
+      - rtm_pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - rtm-internal-network
+      - rtm-internal-network         # Тільки внутрішня мережа (БД схована від проксі)
 
 networks:
+  nginx-proxy-network:               # Оголошуємо зовнішню мережу проксі-сервера
+    external: true
   rtm-internal-network:
     driver: bridge
 
 volumes:
-  rtm_pg_data:                          # Назва тома збігається з оголошеною в сервісі db
+  rtm_pg_data:
