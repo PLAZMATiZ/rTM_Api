@@ -1,5 +1,5 @@
-# Збірка
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Збірка (використовуємо SDK, оскільки тут потрібні інструменти для компіляції)
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Копіюємо проект
@@ -10,8 +10,8 @@ RUN dotnet restore "Rtm.csproj"
 COPY . .
 RUN dotnet publish "Rtm.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+# Runtime (тут достатньо лише runtime-образу aspnet для запуску)
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 WORKDIR /app
 COPY --from=build /app/publish .
 
